@@ -1,0 +1,36 @@
+{
+  "name": "reachinbox-email-scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise-grade distributed email scheduling platform with BullMQ, Redis, PostgreSQL, Elasticsearch, Google OAuth, and Slack notifications",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:shared": "npm run build --workspace=@reachinbox/shared",
+    "build:api": "npm run build --workspace=@reachinbox/api",
+    "build:web": "npm run build --workspace=@reachinbox/web",
+    "dev:api": "npm run dev --workspace=@reachinbox/api",
+    "dev:worker": "npm run worker --workspace=@reachinbox/api",
+    "dev:web": "npm run dev --workspace=@reachinbox/web",
+    "test": "npm run test --workspace=@reachinbox/api",
+    "test:coverage": "npm run test:coverage --workspace=@reachinbox/api",
+    "db:migrate": "npm run db:migrate --workspace=@reachinbox/api",
+    "db:generate": "npm run db:generate --workspace=@reachinbox/api",
+    "db:seed": "npm run db:seed --workspace=@reachinbox/api",
+    "recover": "npm run recover --workspace=@reachinbox/api",
+    "reindex": "npm run reindex --workspace=@reachinbox/api",
+    "docker:up": "docker compose -f infra/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infra/docker-compose.yml down",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

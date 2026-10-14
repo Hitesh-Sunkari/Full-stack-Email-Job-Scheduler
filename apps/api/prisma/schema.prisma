@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmailStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id             String           @id @default(uuid())
+  googleSub      String           @unique @map("google_sub")
+  email          String           @unique
+  name           String
+  avatarUrl      String?          @map("avatar_url")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  senderAccounts SenderAccount[]
+  campaigns      EmailCampaign[]
+  scheduledEmails ScheduledEmail[]
+  slackConnection SlackConnection?
+
+  @@map("users")
+}
+
+model SenderAccount {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  senderEmail       String           @map("sender_email")
+  displayName       String           @map("display_name")
+  smtpHost          String           @map("smtp_host")
+  smtpPort          Int              @default(587) @map("smtp_port")
+  smtpSecure        Boolean          @default(false) @map("smtp_secure")
+  smtpUser          String           @map("smtp_user")
+  encryptedSmtpPass String           @map("encrypted_smtp_pass")
+  isActive          Boolean          @default(true) @map("is_active")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns         EmailCampaign[]
+  scheduledEmails   ScheduledEmail[]
+
+  @@unique([userId, senderEmail])
+  @@index([userId])
+  @@map("sender_accounts")
+}
+
+model EmailCampaign {
+  id                String           @id @default(uuid())
+  userId            String           @map("user_id")
+  senderId          String           @map("sender_id")
+  subject           String
+  body              String
+  startTime         DateTime         @map("start_time")
+  configuredDelayMs Int              @default(2000) @map("configured_delay_ms")
+  hourlyLimit       Int              @default(200) @map("hourly_limit")
+  status            CampaignStatus   @default(ACTIVE)
+  totalRecipients   Int              @default(0) @map("total_recipients")
+  sentCount         Int              @default(0) @map("sent_count")
+  failedCount       Int              @default(0) @map("failed_count")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sender            SenderAccount    @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  scheduledEmails   ScheduledEmail[]
+
+  @@index([userId])
+  @@index([senderId])
+  @@map("email_campaigns")
+}
+
+model ScheduledEmail {
+  id                 String           @id @default(uuid())
+  campaignId         String           @map("campaign_id")
+  userId             String           @map("user_id")
+  senderId           String           @map("sender_id")
+  recipient          String
+  subject            String
+  body               String
+  scheduledAt        DateTime         @map("scheduled_at")
+  sentAt             DateTime?        @map("sent_at")
+  status             EmailStatus      @default(SCHEDULED)
+  attemptCount       Int              @default(0) @map("attempt_count")
+  idempotencyKey     String           @unique @map("idempotency_key")
+  bullJobId          String?          @map("bull_job_id")
+  smtpMessageId      String?          @map("smtp_message_id")
+  etherealPreviewUrl String?          @map("ethereal_preview_url")
+  lastError          String?          @map("last_error")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  campaign           EmailCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sender             SenderAccount    @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([userId, status])
+  @@index([userId, scheduledAt])
+  @@index([campaignId])
+  @@index([senderId, scheduledAt])
+  @@index([recipient])
+  @@index([status, scheduledAt])
+  @@map("scheduled_emails")
+}
+
+model SlackConnection {
+  id                  String           @id @default(uuid())
+  userId              String           @unique @map("user_id")
+  slackTeamId         String           @map("slack_team_id")
+  slackTeamName       String?          @map("slack_team_name")
+  channelName         String?          @map("channel_name")
+  encryptedOAuthToken String           @map("encrypted_oauth_token")
+  isConnected         Boolean          @default(true) @map("is_connected")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("slack_connections")
+}
+
+model NotificationEvent {
+  id               String             @id @default(uuid())
+  tenantId         String             @map("tenant_id")
+  senderId         String             @map("sender_id")
+  rateLimitWindow  String             @map("rate_limit_window")
+  eventKey         String             @unique @map("event_key")
+  status           NotificationStatus @default(PENDING)
+  lastError        String?            @map("last_error")
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  @@index([tenantId, senderId])
+  @@index([eventKey])
+  @@map("notification_events")
+}

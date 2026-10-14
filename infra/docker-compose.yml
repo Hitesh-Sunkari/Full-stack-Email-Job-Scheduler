@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reachinbox_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reachinbox
+      POSTGRES_PASSWORD: reachinbox_secret
+      POSTGRES_DB: reachinbox_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reachinbox -d reachinbox_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - reachinbox_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: reachinbox_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - reachinbox_net
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: reachinbox_elasticsearch
+    restart: unless-stopped
+    environment:
+      - node.name=reachinbox-es01
+      - cluster.name=reachinbox-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - reachinbox_net
+
+volumes:
+  postgres_data:
+    name: reachinbox_postgres_data
+  redis_data:
+    name: reachinbox_redis_data
+  es_data:
+    name: reachinbox_es_data
+
+networks:
+  reachinbox_net:
+    name: reachinbox_network
+    driver: bridge
