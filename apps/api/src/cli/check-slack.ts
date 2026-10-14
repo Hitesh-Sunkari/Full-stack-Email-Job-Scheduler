@@ -26,6 +26,13 @@ async function main() {
     console.log(`\nGenerated OAuth Redirect URL: OK (Valid Slack authorization endpoint generated)`);
   }
 
+  // Check users
+  const users = await prisma.user.findMany();
+  console.log(`\nRegistered Users: ${users.length}`);
+  users.forEach((u) => {
+    console.log(`- User ID: ${u.id} | Email: ${u.email} | Name: ${u.name} | Avatar: ${Boolean(u.avatarUrl)}`);
+  });
+
   // Check database connections
   const connections = await prisma.slackConnection.findMany();
   console.log(`\nPersisted Slack Connections: ${connections.length}`);

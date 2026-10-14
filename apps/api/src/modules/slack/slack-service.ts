@@ -150,60 +150,84 @@ export class SlackService {
 
     if (!slackConn || !slackConn.isConnected || !slackConn.encryptedOAuthToken) {
       logger.info({ tenantId, senderEmail }, 'Slack not connected for tenant; rate-limit event recorded without notification.');
+      if (force) {
+        throw new Error('Slack is not connected for this account. Please connect via OAuth first.');
+      }
       return false;
     }
 
-    try {
-      const accessToken = decryptToken(slackConn.encryptedOAuthToken, env.TOKEN_ENCRYPTION_KEY);
-      const client = new WebClient(accessToken);
-      const destinationChannel = slackConn.channelName || env.SLACK_DEFAULT_CHANNEL;
+    const destinationChannel = slackConn.channelName || env.SLACK_DEFAULT_CHANNEL;
+    const formattedNextTime = nextEligibleTime.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 
-      const formattedNextTime = nextEligibleTime.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-
-      await client.chat.postMessage({
-        channel: destinationChannel,
-        text: `⚠️ ReachInbox Hourly Rate Limit Reached for ${senderEmail}`,
-        blocks: [
+    const messageBlocks = [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: '⚠️ ReachInbox Hourly Rate Limit Warning',
+          emoji: true,
+        },
+      },
+      {
+        type: 'section',
+        fields: [
           {
-            type: 'header',
-            text: {
-              type: 'plain_text',
-              text: '⚠️ ReachInbox Hourly Rate Limit Warning',
-              emoji: true,
-            },
+            type: 'mrkdwn',
+            text: `*Sender Account:*\n\`${senderEmail}\``,
           },
           {
-            type: 'section',
-            fields: [
-              {
-                type: 'mrkdwn',
-                text: `*Sender Account:*\n\`${senderEmail}\``,
-              },
-              {
-                type: 'mrkdwn',
-                text: `*Hourly Quota:*\n${hourlyLimit} emails/hour`,
-              },
-              {
-                type: 'mrkdwn',
-                text: `*Hour Window:*\n\`${windowKey}\``,
-              },
-              {
-                type: 'mrkdwn',
-                text: `*Automatic Deferral:*\n${formattedNextTime}`,
-              },
-            ],
+            type: 'mrkdwn',
+            text: `*Hourly Quota:*\n${hourlyLimit} emails/hour`,
           },
           {
-            type: 'context',
-            elements: [
-              {
-                type: 'mrkdwn',
-                text: 'Email jobs exceeding quota have been safely re-queued and deferred without dropping.',
-              },
-            ],
+            type: 'mrkdwn',
+            text: `*Hour Window:*\n\`${windowKey}\``,
+          },
+          {
+            type: 'mrkdwn',
+            text: `*Automatic Deferral:*\n${formattedNextTime}`,
           },
         ],
-      });
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: 'Email jobs exceeding quota have been safely re-queued and deferred without dropping.',
+          },
+        ],
+      },
+    ];
+
+    try {
+      if (env.SLACK_WEBHOOK_URL) {
+        const res = await fetch(env.SLACK_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `⚠️ ReachInbox Hourly Rate Limit Reached for ${senderEmail}`,
+            blocks: messageBlocks,
+          }),
+        });
+        if (!res.ok) {
+          throw new Error(`Slack incoming webhook returned HTTP status ${res.status}`);
+        }
+      } else {
+        const accessToken = decryptToken(slackConn.encryptedOAuthToken, env.TOKEN_ENCRYPTION_KEY);
+        const client = new WebClient(accessToken);
+
+        // Normalize channel target: ensure either channel ID or #prefix
+        const targetChannel = destinationChannel.startsWith('C') || destinationChannel.startsWith('#')
+          ? destinationChannel
+          : `#${destinationChannel}`;
+
+        await client.chat.postMessage({
+          channel: targetChannel,
+          text: `⚠️ ReachInbox Hourly Rate Limit Reached for ${senderEmail}`,
+          blocks: messageBlocks,
+        });
+      }
 
       await prisma.notificationEvent.update({
         where: { id: event.id },
@@ -220,6 +244,16 @@ export class SlackService {
         where: { id: event.id },
         data: { status: NotificationStatus.FAILED, lastError: errorMsg },
       });
+
+      if (force) {
+        if (errorMsg.includes('channel_not_found') || errorMsg.includes('not_in_channel')) {
+          const ch = destinationChannel.replace(/^#/, '');
+          throw new Error(
+            `Bot is not in Slack channel #${ch}. In Slack, open #${ch} and invite the app by typing: /invite @email`
+          );
+        }
+        throw new Error(`Slack delivery failed: ${errorMsg}`);
+      }
 
       return false;
     }

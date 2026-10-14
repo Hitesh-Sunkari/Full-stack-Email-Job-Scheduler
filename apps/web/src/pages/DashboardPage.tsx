@@ -50,6 +50,7 @@ export const DashboardPage: React.FC = () => {
   const filterRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const [slackFeedback, setSlackFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
 
   // Close filter dropdown on outside click
   useEffect(() => {
@@ -275,15 +276,19 @@ export const DashboardPage: React.FC = () => {
 
         {/* User Profile Card */}
         <div className="ri-profile-card" title={userEmail}>
-          <img
-            src={userAvatar}
-            alt={userName}
-            className="ri-avatar-img"
-            onError={(e) => {
-              // fallback if image fails
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
+          {userAvatar && !avatarError ? (
+            <img
+              src={userAvatar}
+              alt={userName}
+              className="ri-avatar-img"
+              referrerPolicy="no-referrer"
+              onError={() => setAvatarError(true)}
+            />
+          ) : (
+            <div className="ri-avatar-fallback">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="ri-profile-info">
             <span className="ri-profile-name">{userName}</span>
             <span className="ri-profile-email">{userEmail}</span>

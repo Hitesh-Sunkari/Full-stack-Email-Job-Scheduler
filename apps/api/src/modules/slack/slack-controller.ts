@@ -101,7 +101,7 @@ slackRouter.post('/disconnect', requireAuth, async (req: Request, res: Response,
 slackRouter.post('/test', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const result = await SlackService.sendRateLimitNotification({
+    await SlackService.sendRateLimitNotification({
       tenantId: userId,
       senderId: 'test-sender',
       senderEmail: req.user!.email || 'sender@reachinbox.ai',
@@ -111,22 +111,17 @@ slackRouter.post('/test', requireAuth, async (req: Request, res: Response, next:
       force: true,
     });
 
-    if (!result) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'SLACK_NOT_CONNECTED',
-          message: 'Slack is not connected for this account. Please connect via OAuth first.',
-        },
-      });
-      return;
-    }
-
     res.json({
       success: true,
       data: { message: 'Test rate-limit alert successfully dispatched to your Slack channel!' },
     });
   } catch (error) {
-    next(error);
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'SLACK_DELIVERY_FAILED',
+        message: (error as Error).message,
+      },
+    });
   }
 });

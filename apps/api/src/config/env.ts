@@ -66,6 +66,7 @@ const EnvSchema = z.object({
   SLACK_CALLBACK_URL: z.string().default('http://localhost:4000/api/integrations/slack/callback'),
   SLACK_SCOPES: z.string().default('chat:write,channels:read,incoming-webhook'),
   SLACK_DEFAULT_CHANNEL: z.string().default('#email-alerts'),
+  SLACK_WEBHOOK_URL: z.string().optional(),
 
   // Admin access
   ADMIN_SECRET: z.string().default('reachinbox_admin_queue_2026'),
