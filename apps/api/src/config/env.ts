@@ -3,8 +3,11 @@ import path from 'path';
 import { z } from 'zod';
 
 // Load .env reliably from monorepo root and process.cwd()
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'apps/api/.env') });
 
 const EnvSchema = z.object({

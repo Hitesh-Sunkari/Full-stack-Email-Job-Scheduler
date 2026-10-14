@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
 import { ComposeModal } from '../features/compose/ComposeModal';
 import { EmailDetailView } from '../features/email-detail/EmailDetailView';
+import { SlackBanner } from '../features/slack/SlackBanner';
 import { format } from 'date-fns';
 import {
   Search, Clock, Star, Send, RefreshCw,
@@ -48,6 +49,7 @@ export const DashboardPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const [slackFeedback, setSlackFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Close filter dropdown on outside click
   useEffect(() => {
@@ -59,6 +61,21 @@ export const DashboardPage: React.FC = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Handle Slack OAuth return redirect query parameters (?slack=connected or ?slack_error=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slackParam = params.get('slack');
+    const slackError = params.get('slack_error');
+    if (slackParam === 'connected') {
+      queryClient.invalidateQueries({ queryKey: ['slack-status'] });
+      setSlackFeedback({ type: 'success', message: 'Slack connected successfully! Live alerts are now active.' });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (slackError) {
+      setSlackFeedback({ type: 'error', message: `Slack connection error: ${decodeURIComponent(slackError)}` });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [queryClient]);
 
   const { data: user } = useQuery({
     queryKey: ['me'],
@@ -138,6 +155,41 @@ export const DashboardPage: React.FC = () => {
     mutationFn: () => api.auth.logout(),
     onSuccess: () => {
       window.location.href = '/';
+    },
+  });
+
+  const { data: slackStatus = null, isLoading: slackLoading } = useQuery({
+    queryKey: ['slack-status'],
+    queryFn: () => api.slack.getStatus(),
+    refetchInterval: 12000,
+  });
+
+  const disconnectSlackMutation = useMutation({
+    mutationFn: () => api.slack.disconnect(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['slack-status'] });
+      setSlackFeedback({ type: 'success', message: 'Slack disconnected successfully' });
+      setTimeout(() => setSlackFeedback(null), 4000);
+    },
+    onError: (err: any) => {
+      setSlackFeedback({
+        type: 'error',
+        message: err?.response?.data?.error?.message || err?.message || 'Failed to disconnect Slack',
+      });
+    },
+  });
+
+  const sendSlackTestMutation = useMutation({
+    mutationFn: () => api.slack.sendTest(),
+    onSuccess: (res) => {
+      setSlackFeedback({ type: 'success', message: res?.message || 'Live test alert sent to your Slack channel!' });
+      setTimeout(() => setSlackFeedback(null), 6000);
+    },
+    onError: (err: any) => {
+      setSlackFeedback({
+        type: 'error',
+        message: err?.response?.data?.error?.message || err?.message || 'Failed to send test alert',
+      });
     },
   });
 
@@ -359,6 +411,18 @@ export const DashboardPage: React.FC = () => {
             </button>
           </div>
         </header>
+
+        {/* Slack Live Rate-Limit Alerts Banner */}
+        <div className="px-6 pt-2 pb-1">
+          <SlackBanner
+            status={slackStatus}
+            onDisconnect={() => disconnectSlackMutation.mutate()}
+            isLoading={disconnectSlackMutation.isPending || slackLoading}
+            onSendTest={() => sendSlackTestMutation.mutate()}
+            isTesting={sendSlackTestMutation.isPending}
+            testFeedback={slackFeedback}
+          />
+        </div>
 
         {/* Email Rows List */}
         <div className="ri-email-list">

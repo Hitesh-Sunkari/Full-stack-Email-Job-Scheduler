@@ -1,51 +1,97 @@
 import React from 'react';
 import { SlackConnectionInfo } from '../../types/api';
-import { Bell, CheckCircle2, AlertCircle, Unlink } from 'lucide-react';
+import { Bell, CheckCircle2, AlertCircle, Unlink, Send, Loader2 } from 'lucide-react';
 
 interface SlackBannerProps {
   status: (SlackConnectionInfo & { isConfigured: boolean }) | null;
   onDisconnect: () => void;
   isLoading: boolean;
+  onSendTest?: () => void;
+  isTesting?: boolean;
+  testFeedback?: { type: 'success' | 'error'; message: string } | null;
 }
 
 export const SlackBanner: React.FC<SlackBannerProps> = ({
   status,
   onDisconnect,
   isLoading,
+  onSendTest,
+  isTesting = false,
+  testFeedback = null,
 }) => {
   if (!status) return null;
 
   if (status.isConnected) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-subtle mb-6">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-subtle mb-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
             <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-emerald-950">
-              Slack Connected to {status.slackTeamName || 'Workspace'}{' '}
-              <span className="text-emerald-700 font-normal">({status.channelName || '#email-alerts'})</span>
+            <p className="text-sm font-semibold text-emerald-950 flex items-center gap-2">
+              Slack Connected
+              <span className="px-2 py-0.5 text-xs font-medium bg-emerald-200/60 text-emerald-900 rounded-full">
+                {status.slackTeamName || 'Workspace'}
+              </span>
+              <span className="text-emerald-700 font-mono text-xs">
+                ({status.channelName || '#email-alerts'})
+              </span>
             </p>
-            <p className="text-xs text-emerald-700">
+            <p className="text-xs text-emerald-700 mt-0.5">
               Live notifications will be posted to this channel when any sender account hits hourly rate limits.
             </p>
+            {testFeedback && (
+              <p
+                className={`text-xs mt-1.5 font-medium inline-flex items-center gap-1.5 px-2 py-0.5 rounded ${
+                  testFeedback.type === 'success'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                {testFeedback.type === 'success' ? '✓' : '⚠'} {testFeedback.message}
+              </p>
+            )}
           </div>
         </div>
-        <button
-          onClick={onDisconnect}
-          disabled={isLoading}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-800 bg-white hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors shadow-sm disabled:opacity-50"
-        >
-          <Unlink className="w-3.5 h-3.5" />
-          <span>Disconnect</span>
-        </button>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          {onSendTest && (
+            <button
+              onClick={onSendTest}
+              disabled={isTesting || isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-white hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+              title="Dispatches a test rate limit notification to your connected Slack channel"
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  <span>Sending…</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Send Test Alert</span>
+                </>
+              )}
+            </button>
+          )}
+
+          <button
+            onClick={onDisconnect}
+            disabled={isLoading || isTesting}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+          >
+            <Unlink className="w-3.5 h-3.5" />
+            <span>Disconnect</span>
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-subtle mb-6">
+    <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-subtle mb-4">
       <div className="flex items-start sm:items-center gap-3.5">
         <div className="p-2.5 bg-white/10 rounded-lg text-indigo-300">
           <Bell className="w-5 h-5" />
@@ -54,12 +100,17 @@ export const SlackBanner: React.FC<SlackBannerProps> = ({
           <h4 className="text-sm font-semibold text-white flex items-center gap-2">
             Real-Time Slack Rate-Limit Alerts
             <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
-              Recommended
+              Instant Webhooks
             </span>
           </h4>
           <p className="text-xs text-slate-300 mt-0.5">
             Connect your Slack workspace to receive instant notifications when sender accounts hit hourly send quotas.
           </p>
+          {testFeedback && (
+            <p className="text-xs mt-1.5 font-medium text-amber-300">
+              {testFeedback.message}
+            </p>
+          )}
         </div>
       </div>
 

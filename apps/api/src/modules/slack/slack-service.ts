@@ -113,18 +113,21 @@ export class SlackService {
     hourlyLimit: number;
     windowKey: string;
     nextEligibleTime: Date;
+    force?: boolean;
   }): Promise<boolean> {
-    const { tenantId, senderId, senderEmail, hourlyLimit, windowKey, nextEligibleTime } = params;
-    const eventKey = `rate_limit:${senderId}:${windowKey}`;
+    const { tenantId, senderId, senderEmail, hourlyLimit, windowKey, nextEligibleTime, force } = params;
+    const eventKey = force ? `rate_limit_test:${senderId}:${Date.now()}` : `rate_limit:${senderId}:${windowKey}`;
 
     // Deduplication via NotificationEvent in PostgreSQL
-    const existing = await prisma.notificationEvent.findUnique({
-      where: { eventKey },
-    });
+    if (!force) {
+      const existing = await prisma.notificationEvent.findUnique({
+        where: { eventKey },
+      });
 
-    if (existing && existing.status === NotificationStatus.SENT) {
-      logger.debug({ eventKey }, 'Slack notification already sent for this window; skipping duplicate.');
-      return false;
+      if (existing && existing.status === NotificationStatus.SENT) {
+        logger.debug({ eventKey }, 'Slack notification already sent for this window; skipping duplicate.');
+        return false;
+      }
     }
 
     // Upsert pending event

@@ -109,5 +109,6 @@ export const api = {
   slack: {
     getStatus: () => request<SlackConnectionInfo & { isConfigured: boolean }>('/integrations/slack'),
     disconnect: () => request<{ message: string }>('/integrations/slack/disconnect', { method: 'POST' }),
+    sendTest: () => request<{ message: string }>('/integrations/slack/test', { method: 'POST' }),
   },
 };
